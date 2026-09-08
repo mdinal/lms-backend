@@ -39,3 +39,19 @@ databaseChangeLog:
               - column:
                   name: domain
                   value: localhost
+  - changeSet:
+      id: 3-insert-prod-institute
+      author: antigravity
+      changes:
+        - insert:
+            tableName: institutes
+            columns:
+              - column:
+                  name: id
+                  valueComputed: gen_random_uuid()
+              - column:
+                  name: name
+                  value: Cambridge Success Centre
+              - column:
+                  name: domain
+                  value: cambridgesuccesscentre

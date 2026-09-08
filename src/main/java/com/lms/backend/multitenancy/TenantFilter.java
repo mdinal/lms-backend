@@ -44,6 +44,10 @@ public class TenantFilter implements Filter {
         if (serverName.startsWith("www.")) {
             serverName = serverName.substring(4);
         }
+        // Remove api. if present
+        if (serverName.startsWith("api.")) {
+            serverName = serverName.substring(4);
+        }
         
         // Example: institute1.com -> "institute1"
         int firstDotIndex = serverName.indexOf('.');
