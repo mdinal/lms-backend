@@ -1,0 +1,78 @@
+spring:
+  application:
+    name: lms-backend
+  datasource:
+    url: jdbc:postgresql://${AWS_RDS_ENDPOINT:localhost}:5432/postgres
+    username: postgres
+    # Password is automatically injected by Spring Cloud AWS Secrets Manager if keys match, 
+    # or explicitly mapped here:
+    password: ${spring.datasource.password:password}
+    driver-class-name: org.postgresql.Driver
+  config:
+    import: aws-secretsmanager:/secrets/lms-backend-${spring.profiles.active:dev}
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+  liquibase:
+    enabled: false # Handled manually by MultiTenantLiquibaseConfig
+  cloud:
+    aws:
+      credentials:
+        access-key: ${AWS_ACCESS_KEY_ID:}
+        secret-key: ${AWS_SECRET_ACCESS_KEY:}
+      region:
+        static: us-east-1
+
+jwt:
+  secret: ${jwt.secret:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  expirationMs: 86400000
+
+aws:
+  s3:
+    bucket-name: dev-lms-videos-123456789012
+  cloudfront:
+    domain: d5kn66sa2r7x8.cloudfront.net
+    key-pair-id: K8DOGF0VG045G
+    private-key: |
+      -----BEGIN PRIVATE KEY-----
+      MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCvHfNf6flr7rOz
+      qUrS2fxwUdadNAz42CIXPNGcqNrfIJU/0ibRXNHIDSMEWDx01o5YRlXxiaooK5xC
+      XKogQkHBkLXsX33UTYfxd8ahIq6L+KFLv8crxBgFeKj/gnE0aKY4m3zxIhgWw/dS
+      mlR8/fHavbxvQ7VFceB7OTwQXZwb3kbbFK874c7G4Lp/G0HdnC3RvcjKvrmiNopL
+      yQXPCFiy4dqO95lx6pyNO+GLXSEqGHQ1rOUAhlWpjS3A2kmToAeLQKHE9nTCNd5H
+      PiZ/iz4uunJAPusal0344bUcdb5KXBeZjK+sUcp4npZm7RtU0S7LTXRVCN9Hzt+6
+      5aKzcwGbAgMBAAECggEAUc+ax2j+UzvZ7Wn+YGJhqrG5I4lRNCJ5TsTlopxKYKqO
+      v5m08+O6yAzHGr0ERYuFRd1aQnUPryOspV44RsjdgopSS6NTHE+6XoeYHuiehhr6
+      c/KdIKfEly3HOlOdAqCPY2vU46yLd3tG/OrH5PsYtholQg/uTIrGlprnIjgxedzH
+      FmqYu3yfouRi9NIv6iSm0KrUOoNiU7QDNlYAkh1XxFVv2336ey6hryVddOJZcPHx
+      u4MoW3ncE/fJq1zhcAcCxYb1CL8/6itCzmRScYwYDpmThGt5cCytoXxDbvbhkXB9
+      J/p2s36qfBPog/Hprso5SBRb/zvG7mmJTf9KkuvNQQKBgQDzc0Z1HpNGxHaF7hYB
+      m8Zst+xck4N/aRPr9KGWpb6odgmaJKLceXPCrqY9iEtOmQtMB++ZUcnv3rngddcT
+      Op45SxSijbfUs1p9mO2GzuyPr0MPT6mmEFKZFAjI/whJUDkVMqzY/6GIxnwLHWXX
+      Nl6/oCIEctRFrUCZr1I4WXTswQKBgQC4JOfj/BfNQ+/9kIe53lcHE9e+o02y4AF/
+      B2YNYUAS8djSoPkYWV/Jp5vpJiAuIufaEYNJWC/fx6hZYL9FRfPF5K9/aJLSTBOP
+      qD9vOaKRmH+vHFIdDA6E5Adh1tTAVp/BBG2geBOZy8z2QPEm0turCWSvjbm408FV
+      dopPOMQZWwKBgFGZzwEM2ZK74Xps3mV1oGHqmEhDja0UPIA3hD4pmil/PyKyqwA5
+      mWqk/cXcPFnBBL9cXZxHhOdpAWbSOOASItzTZLxDwl2CLI+yxdMM4tAaj+C+8/9c
+      s0LqKzOsAEwKnseTL8qgjLV6yjMzjGJBsCqM8zoIf0xHkUKyOF345i9BAoGBAKV5
+      3Ly+VHFMBMT69Uzs5Y3hofWZcIA21oFdl7KcWuTrWinlKBNedTqUmQHKFg7/pRQM
+      usrVKahSFhHDY/6PXwHNgHvg8Fd0r/tfeSmtRE7MGKm2rH+XzxBSjeO5F1SEQ2lD
+      XnRek1aYkuYT8+EsiORJO6aamHPkLo9rR9zrKSWTAoGAEQI07NEMC0WoUIfjUsxA
+      1/kIwG/v9cnvjTCDj1Afy79xOzkbDPDLBEZ7JqLCP94PRe+j77GnktssOowJaRll
+      oMc3IjYce+e6js8eTxD/6FZPS9RFboq+WNMI9nwRshjuC2XCk87Wuh9skL6awBNT
+      wAwAGy1iwTjzjMkBoGMUpGQ=
+      -----END PRIVATE KEY-----
+  mediaconvert:
+    endpoint: ${MEDIACONVERT_ENDPOINT:}
+    role: arn:aws:iam::406579089446:role/dev-mediaconvert-role
+
+zoom:
+  accountId: ${zoom.accountId:}
+  clientId: ${zoom.clientId:}
+  clientSecret: ${zoom.clientSecret:}
+
+

@@ -32,4 +32,3 @@ build/
 ### VS Code ###
 .vscode/
 lms-keys.json
-src/main/resources/application.yml
