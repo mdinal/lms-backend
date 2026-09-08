@@ -34,4 +34,4 @@ jobs:
             sudo docker build -t lms-backend .
             sudo docker stop backend-container || true
             sudo docker rm backend-container || true
-            sudo docker run -d --name backend-container -p 8080:8080 lms-backend
+            sudo docker run -d --name backend-container -p 8080:8080 -e AWS_RDS_ENDPOINT=dev-lms-db.c4ro02c0ykg5.us-east-1.rds.amazonaws.com lms-backend
