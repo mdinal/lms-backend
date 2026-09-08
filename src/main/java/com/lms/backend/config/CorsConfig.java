@@ -13,17 +13,17 @@ import java.util.Collections;
 public class CorsConfig {
 
     @Bean
-    public CorsFilter corsFilter() {
+    public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
         
         // Allow the frontend dev server and any future production domain
-        config.setAllowedOriginPatterns(Arrays.asList("http://localhost:3000", "https://*.vercel.app"));
+        config.setAllowedOriginPatterns(Arrays.asList("http://localhost:3000", "https://*.vercel.app", "https://cambridgesuccesscentre.com", "https://www.cambridgesuccesscentre.com"));
         config.setAllowedHeaders(Arrays.asList("Origin", "Content-Type", "Accept", "Authorization"));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "OPTIONS", "DELETE", "PATCH"));
         config.setAllowCredentials(true);
         
         source.registerCorsConfiguration("/**", config);
-        return new CorsFilter(source);
+        return source;
     }
 }
