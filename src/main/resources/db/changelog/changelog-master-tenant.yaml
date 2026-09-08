@@ -1,0 +1,102 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1-tenant-users
+      author: antigravity
+      changes:
+        - createTable:
+            tableName: users
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: email
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: password_hash
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: role
+                  type: varchar(50)
+                  constraints:
+                    nullable: false
+  - changeSet:
+      id: 2-tenant-courses
+      author: antigravity
+      changes:
+        - createTable:
+            tableName: courses
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: title
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: text
+              - column:
+                  name: tutor_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_course_tutor
+                    references: users(id)
+  - changeSet:
+      id: 3-tenant-lessons
+      author: antigravity
+      changes:
+        - createTable:
+            tableName: lessons
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: title
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: course_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_lesson_course
+                    references: courses(id)
+              - column:
+                  name: video_s3_key
+                  type: varchar(500)
+              - column:
+                  name: document_s3_key
+                  type: varchar(500)
+              - column:
+                  name: zoom_join_url
+                  type: varchar(500)
+              - column:
+                  name: zoom_meeting_id
+                  type: varchar(255)
+              - column:
+                  name: scheduled_at
+                  type: timestamp

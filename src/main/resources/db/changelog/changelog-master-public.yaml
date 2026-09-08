@@ -1,0 +1,41 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1-public-institutes
+      author: antigravity
+      changes:
+        - createTable:
+            tableName: institutes
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: domain
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+  - changeSet:
+      id: 2-insert-default-institute
+      author: antigravity
+      changes:
+        - insert:
+            tableName: institutes
+            columns:
+              - column:
+                  name: id
+                  valueComputed: gen_random_uuid()
+              - column:
+                  name: name
+                  value: Default Institute
+              - column:
+                  name: domain
+                  value: localhost
