@@ -21,6 +21,9 @@ public class Course {
     @Column(nullable = false)
     private Double price = 0.0;
 
+    @Column(nullable = false)
+    private String status = "PUBLISHED";
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tutor_id")
     private User tutor;
@@ -37,6 +40,8 @@ public class Course {
     public void setDescription(String description) { this.description = description; }
     public Double getPrice() { return price; }
     public void setPrice(Double price) { this.price = price; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
     public User getTutor() { return tutor; }
     public void setTutor(User tutor) { this.tutor = tutor; }
     public List<Lesson> getLessons() { return lessons; }

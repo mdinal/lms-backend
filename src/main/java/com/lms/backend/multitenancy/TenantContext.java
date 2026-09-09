@@ -2,7 +2,7 @@ package com.lms.backend.multitenancy;
 
 public class TenantContext {
     private static final ThreadLocal<String> currentTenant = new InheritableThreadLocal<>();
-    public static final String DEFAULT_TENANT = "public";
+    public static final String DEFAULT_TENANT = "localhost";
 
     public static void setTenantId(String tenantId) {
         currentTenant.set(tenantId);

@@ -1,56 +1,211 @@
 package com.lms.backend.controller;
 
-import com.lms.backend.service.CloudFrontService;
-import com.lms.backend.service.VideoTranscodingService;
-import com.lms.backend.service.S3Service;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-import java.util.Map;
-
 import com.lms.backend.dto.ZoomMeetingResponse;
+import com.lms.backend.entity.Course;
+import com.lms.backend.entity.Enrollment;
+import com.lms.backend.entity.Lesson;
+import com.lms.backend.entity.User;
+import com.lms.backend.repository.CourseRepository;
+import com.lms.backend.repository.EnrollmentRepository;
+import com.lms.backend.repository.LessonRepository;
+import com.lms.backend.repository.UserRepository;
+import com.lms.backend.service.CloudFrontService;
+import com.lms.backend.service.S3Service;
+import com.lms.backend.service.VideoTranscodingService;
 import com.lms.backend.service.ZoomService;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/lessons")
 public class LessonController {
 
-    @Autowired
-    private S3Service s3Service;
+    private final LessonRepository lessonRepository;
+    private final CourseRepository courseRepository;
+    private final UserRepository userRepository;
+    private final EnrollmentRepository enrollmentRepository;
+    private final S3Service s3Service;
+    private final CloudFrontService cloudFrontService;
+    private final VideoTranscodingService videoTranscodingService;
+    private final ZoomService zoomService;
 
-    @Autowired
-    private CloudFrontService cloudFrontService;
+    @Value("${aws.s3.bucket-name:dev-lms-videos-123456789012}")
+    private String s3BucketName;
 
-    @Autowired
-    private VideoTranscodingService videoTranscodingService;
+    public LessonController(LessonRepository lessonRepository, CourseRepository courseRepository,
+                            UserRepository userRepository, EnrollmentRepository enrollmentRepository,
+                            S3Service s3Service, CloudFrontService cloudFrontService,
+                            VideoTranscodingService videoTranscodingService, ZoomService zoomService) {
+        this.lessonRepository = lessonRepository;
+        this.courseRepository = courseRepository;
+        this.userRepository = userRepository;
+        this.enrollmentRepository = enrollmentRepository;
+        this.s3Service = s3Service;
+        this.cloudFrontService = cloudFrontService;
+        this.videoTranscodingService = videoTranscodingService;
+        this.zoomService = zoomService;
+    }
 
-    @Autowired
-    private ZoomService zoomService;
+    private User getAuthenticatedUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
+            return null;
+        }
+        return userRepository.findByEmail(auth.getName()).orElse(null);
+    }
+
+    @PostMapping("/course/{courseId}")
+    public ResponseEntity<?> createLesson(@PathVariable UUID courseId, @RequestBody Map<String, String> request) {
+        User currentUser = getAuthenticatedUser();
+        if (currentUser == null || (currentUser.getRole() != User.Role.ADMIN && currentUser.getRole() != User.Role.TUTOR)) {
+            return ResponseEntity.status(403).body("Forbidden");
+        }
+
+        Course course = courseRepository.findById(courseId).orElse(null);
+        if (course == null) {
+            return ResponseEntity.status(404).body("Course not found");
+        }
+
+        if (currentUser.getRole() == User.Role.TUTOR && course.getTutor() != null && !course.getTutor().getId().equals(currentUser.getId())) {
+            return ResponseEntity.status(403).body("You can only add lessons to your own courses");
+        }
+
+        String title = request.get("title");
+        if (title == null || title.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("Lesson title is required");
+        }
+
+        Lesson lesson = new Lesson();
+        lesson.setTitle(title.trim());
+        lesson.setCourse(course);
+
+        if (request.containsKey("scheduledAt") && request.get("scheduledAt") != null && !request.get("scheduledAt").isEmpty()) {
+            try {
+                lesson.setScheduledAt(LocalDateTime.parse(request.get("scheduledAt")));
+            } catch (Exception ignored) {}
+        }
+
+        lessonRepository.save(lesson);
+        return ResponseEntity.ok(Map.of("message", "Lesson created successfully", "id", lesson.getId().toString()));
+    }
+
+    @GetMapping("/course/{courseId}")
+    public ResponseEntity<?> getLessonsForCourse(@PathVariable UUID courseId) {
+        Course course = courseRepository.findById(courseId).orElse(null);
+        if (course == null) {
+            return ResponseEntity.status(404).body("Course not found");
+        }
+
+        List<Lesson> lessons = lessonRepository.findByCourseOrderByScheduledAtAsc(course);
+        List<Map<String, Object>> result = lessons.stream().map(l -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", l.getId().toString());
+            map.put("title", l.getTitle());
+            map.put("videoS3Key", l.getVideoS3Key());
+            map.put("documentS3Key", l.getDocumentS3Key());
+            map.put("zoomJoinUrl", l.getZoomJoinUrl());
+            map.put("zoomMeetingId", l.getZoomMeetingId());
+            map.put("scheduledAt", l.getScheduledAt() != null ? l.getScheduledAt().toString() : null);
+            return map;
+        }).collect(Collectors.toList());
+
+        return ResponseEntity.ok(result);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateLesson(@PathVariable UUID id, @RequestBody Map<String, String> request) {
+        User currentUser = getAuthenticatedUser();
+        if (currentUser == null || (currentUser.getRole() != User.Role.ADMIN && currentUser.getRole() != User.Role.TUTOR)) {
+            return ResponseEntity.status(403).body("Forbidden");
+        }
+
+        Lesson lesson = lessonRepository.findById(id).orElse(null);
+        if (lesson == null) {
+            return ResponseEntity.status(404).body("Lesson not found");
+        }
+
+        if (request.containsKey("title")) lesson.setTitle(request.get("title"));
+        if (request.containsKey("documentS3Key")) lesson.setDocumentS3Key(request.get("documentS3Key"));
+        if (request.containsKey("scheduledAt")) {
+            try {
+                lesson.setScheduledAt(LocalDateTime.parse(request.get("scheduledAt")));
+            } catch (Exception ignored) {}
+        }
+
+        lessonRepository.save(lesson);
+        return ResponseEntity.ok(Map.of("message", "Lesson updated successfully"));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteLesson(@PathVariable UUID id) {
+        User currentUser = getAuthenticatedUser();
+        if (currentUser == null || (currentUser.getRole() != User.Role.ADMIN && currentUser.getRole() != User.Role.TUTOR)) {
+            return ResponseEntity.status(403).body("Forbidden");
+        }
+
+        Lesson lesson = lessonRepository.findById(id).orElse(null);
+        if (lesson == null) {
+            return ResponseEntity.status(404).body("Lesson not found");
+        }
+
+        lessonRepository.delete(lesson);
+        return ResponseEntity.ok(Map.of("message", "Lesson deleted successfully"));
+    }
 
     @PostMapping("/{id}/live-class")
-    public ResponseEntity<?> createLiveClass(@PathVariable Long id, @RequestParam("topic") String topic, @RequestParam("duration") int duration) {
+    public ResponseEntity<?> createLiveClass(@PathVariable UUID id,
+                                             @RequestParam("topic") String topic,
+                                             @RequestParam(value = "duration", defaultValue = "60") int duration) {
+        User currentUser = getAuthenticatedUser();
+        if (currentUser == null || (currentUser.getRole() != User.Role.ADMIN && currentUser.getRole() != User.Role.TUTOR)) {
+            return ResponseEntity.status(403).body("Forbidden");
+        }
+
+        Lesson lesson = lessonRepository.findById(id).orElse(null);
+        if (lesson == null) {
+            return ResponseEntity.status(404).body("Lesson not found");
+        }
+
         try {
             ZoomMeetingResponse meeting = zoomService.createMeeting(topic, duration);
-            
-            // In reality, save meeting.getJoinUrl() and meeting.getId() to the Lesson in DB
-            
+
+            // Persist the meeting details directly to the Lesson in DB
+            lesson.setZoomJoinUrl(meeting.getJoinUrl());
+            lesson.setZoomMeetingId(meeting.getId() != null ? meeting.getId().toString() : null);
+            if (lesson.getScheduledAt() == null) {
+                lesson.setScheduledAt(LocalDateTime.now());
+            }
+            lessonRepository.save(lesson);
+
             return ResponseEntity.ok(Map.of(
                 "message", "Live class scheduled successfully",
                 "joinUrl", meeting.getJoinUrl(),
-                "startUrl", meeting.getStartUrl()
+                "startUrl", meeting.getStartUrl(),
+                "meetingId", meeting.getId() != null ? meeting.getId().toString() : ""
             ));
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.internalServerError().body("Failed to schedule Zoom meeting: " + e.getMessage());
         }
     }
-    
+
     @GetMapping("/{id}/presigned-url")
-    public ResponseEntity<?> getPresignedUrl(@PathVariable Long id, @RequestParam("filename") String filename, @RequestParam("contentType") String contentType) {
-        // Generate a unique object key for the raw video
+    public ResponseEntity<?> getPresignedUrl(@PathVariable UUID id,
+                                             @RequestParam("filename") String filename,
+                                             @RequestParam("contentType") String contentType) {
+        Lesson lesson = lessonRepository.findById(id).orElse(null);
+        if (lesson == null) {
+            return ResponseEntity.status(404).body("Lesson not found");
+        }
+
         String rawS3Key = "raw-videos/lesson_" + id + "/" + System.currentTimeMillis() + "_" + filename;
-        
+
         try {
             String presignedUrl = s3Service.generatePresignedUploadUrl(rawS3Key, contentType);
             return ResponseEntity.ok(Map.of(
@@ -58,87 +213,117 @@ public class LessonController {
                 "s3Key", rawS3Key
             ));
         } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().body("Failed to generate S3 presigned URL");
+            return ResponseEntity.internalServerError().body("Failed to generate S3 presigned URL: " + e.getMessage());
         }
     }
 
     @PostMapping("/{id}/transcode")
-    public ResponseEntity<?> transcodeVideo(@PathVariable Long id, @RequestBody Map<String, String> request) {
+    public ResponseEntity<?> transcodeVideo(@PathVariable UUID id, @RequestBody Map<String, String> request) {
         String rawS3Key = request.get("s3Key");
         if (rawS3Key == null || rawS3Key.isEmpty()) {
             return ResponseEntity.badRequest().body("s3Key is required");
         }
 
-        // Trigger MediaConvert Job to convert the raw MP4 into an HLS stream
+        Lesson lesson = lessonRepository.findById(id).orElse(null);
+        if (lesson == null) {
+            return ResponseEntity.status(404).body("Lesson not found");
+        }
+
         String outputPrefix = "hls-videos/lesson_" + id + "/";
-        
+
         try {
-            // Replace lms-videos-bucket with your actual bucket name or inject it
-            // For now, hardcoding based on standard lms-videos-bucket, or we can fetch from config
-            String bucket = "dev-lms-videos-123456789012";
-            videoTranscodingService.createTranscodingJob("s3://" + bucket + "/" + rawS3Key, "s3://" + bucket + "/" + outputPrefix);
-            
-            // Save the future HLS playlist key to the database for this lesson
+            videoTranscodingService.createTranscodingJob(
+                "s3://" + s3BucketName + "/" + rawS3Key,
+                "s3://" + s3BucketName + "/" + outputPrefix
+            );
+
             String hlsPlaylistKey = outputPrefix + "lesson_" + id + "-hls.m3u8";
-            // lessonRepository.updateVideoKey(id, hlsPlaylistKey);
+            lesson.setVideoS3Key(hlsPlaylistKey);
+            lessonRepository.save(lesson);
 
             return ResponseEntity.ok(Map.of(
-                "message", "Transcoding started successfully.", 
+                "message", "Transcoding started successfully.",
                 "hlsKey", hlsPlaylistKey
             ));
         } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().body("Failed to start MediaConvert job");
+            return ResponseEntity.internalServerError().body("Failed to start MediaConvert job: " + e.getMessage());
         }
     }
 
-    @Autowired
-    private com.lms.backend.repository.CourseRepository courseRepository;
-    
-    @Autowired
-    private com.lms.backend.repository.UserRepository userRepository;
-
-    @Autowired
-    private com.lms.backend.repository.EnrollmentRepository enrollmentRepository;
-
     @GetMapping("/{id}/stream")
-    public ResponseEntity<?> getVideoStreamUrl(@PathVariable Long id) {
-        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        String email = auth.getName();
-        com.lms.backend.entity.User currentUser = userRepository.findByEmail(email).orElse(null);
-
+    public ResponseEntity<?> getVideoStreamUrl(@PathVariable UUID id) {
+        User currentUser = getAuthenticatedUser();
         if (currentUser == null) {
             return ResponseEntity.status(401).body("Unauthorized");
         }
 
-        // Hardcoding Course ID lookup to match the generic lesson/course structure we built
-        // In reality, this would lookup the Lesson, then get its Course
-        java.util.UUID courseId;
-        try {
-            // For now we map lesson {id} to course ID string if it's passed as a UUID string, else skip auth for demo
-            courseId = java.util.UUID.fromString(id.toString());
-            com.lms.backend.entity.Course course = courseRepository.findById(courseId).orElse(null);
-            
-            if (currentUser.getRole() == com.lms.backend.entity.User.Role.STUDENT) {
-                java.util.Optional<com.lms.backend.entity.Enrollment> enrollment = enrollmentRepository.findByUserAndCourse(currentUser, course);
-                if (enrollment.isEmpty() || enrollment.get().getStatus() != com.lms.backend.entity.Enrollment.Status.ACTIVE) {
-                    return ResponseEntity.status(403).body("You are not enrolled in this course.");
-                }
-            }
-        } catch (Exception e) {
-            // If it's not a UUID, we bypass strict enrollment check just for this mock phase
+        Lesson lesson = lessonRepository.findById(id).orElse(null);
+        if (lesson == null) {
+            return ResponseEntity.status(404).body("Lesson not found");
         }
 
-        // For demonstration, we mock the key
-        String s3Key = "hls-videos/lesson_" + id + "/lesson_" + id + "-hls.m3u8";
+        Course course = lesson.getCourse();
+
+        // Check access permissions
+        if (currentUser.getRole() == User.Role.STUDENT) {
+            Optional<Enrollment> enrollment = enrollmentRepository.findByUserAndCourse(currentUser, course);
+            if (enrollment.isEmpty() || enrollment.get().getStatus() != Enrollment.Status.ACTIVE) {
+                return ResponseEntity.status(403).body("You are not enrolled in this course");
+            }
+        } else if (currentUser.getRole() == User.Role.TUTOR && course.getTutor() != null && !course.getTutor().getId().equals(currentUser.getId())) {
+            return ResponseEntity.status(403).body("You are not the instructor for this course");
+        }
+
+        String s3Key = lesson.getVideoS3Key();
+        if (s3Key == null || s3Key.isEmpty()) {
+            return ResponseEntity.status(404).body("No video recorded or transcoded for this lesson yet");
+        }
 
         try {
-            // Generate short-lived CloudFront signed URL for the HLS playlist
             String signedUrl = cloudFrontService.generateSignedUrl(s3Key);
             return ResponseEntity.ok(Map.of("streamUrl", signedUrl));
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Failed to generate signed URL");
+            return ResponseEntity.internalServerError().body("Failed to generate signed streaming URL: " + e.getMessage());
         }
+    }
+
+    @GetMapping("/live-classes/upcoming")
+    public ResponseEntity<?> getUpcomingLiveClasses() {
+        User currentUser = getAuthenticatedUser();
+        if (currentUser == null) {
+            return ResponseEntity.status(401).body("Unauthorized");
+        }
+
+        List<Course> relevantCourses;
+        if (currentUser.getRole() == User.Role.STUDENT) {
+            relevantCourses = enrollmentRepository.findByUser(currentUser).stream()
+                .filter(e -> e.getStatus() == Enrollment.Status.ACTIVE)
+                .map(Enrollment::getCourse)
+                .collect(Collectors.toList());
+        } else if (currentUser.getRole() == User.Role.TUTOR) {
+            relevantCourses = courseRepository.findByTutor(currentUser);
+        } else {
+            relevantCourses = courseRepository.findAll();
+        }
+
+        List<Map<String, Object>> liveClasses = new ArrayList<>();
+        for (Course course : relevantCourses) {
+            List<Lesson> lessons = lessonRepository.findByCourse(course);
+            for (Lesson lesson : lessons) {
+                if (lesson.getZoomJoinUrl() != null && !lesson.getZoomJoinUrl().isEmpty()) {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("lessonId", lesson.getId().toString());
+                    map.put("lessonTitle", lesson.getTitle());
+                    map.put("courseId", course.getId().toString());
+                    map.put("courseTitle", course.getTitle());
+                    map.put("zoomJoinUrl", lesson.getZoomJoinUrl());
+                    map.put("zoomMeetingId", lesson.getZoomMeetingId());
+                    map.put("scheduledAt", lesson.getScheduledAt() != null ? lesson.getScheduledAt().toString() : null);
+                    liveClasses.add(map);
+                }
+            }
+        }
+
+        return ResponseEntity.ok(liveClasses);
     }
 }

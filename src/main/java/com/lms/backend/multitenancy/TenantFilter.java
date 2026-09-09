@@ -37,7 +37,7 @@ public class TenantFilter implements Filter {
 
     private String extractTenantId(String serverName) {
         if (serverName == null || serverName.equals("localhost") || serverName.equals("127.0.0.1")) {
-            return TenantContext.DEFAULT_TENANT;
+            return "localhost";
         }
         
         // Remove www. if present

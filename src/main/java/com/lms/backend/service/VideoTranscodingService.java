@@ -19,8 +19,11 @@ public class VideoTranscodingService {
             return; // Skip if MediaConvert is not configured
         }
 
-        MediaConvertClient mcClient = MediaConvertClient.builder()
-                .build();
+        software.amazon.awssdk.services.mediaconvert.MediaConvertClientBuilder builder = MediaConvertClient.builder();
+        if (mediaConvertEndpoint != null && !mediaConvertEndpoint.isEmpty()) {
+            builder.endpointOverride(java.net.URI.create(mediaConvertEndpoint));
+        }
+        MediaConvertClient mcClient = builder.build();
 
         // 1. Define Input
         Input input = Input.builder()

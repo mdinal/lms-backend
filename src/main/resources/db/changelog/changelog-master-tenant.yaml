@@ -100,3 +100,145 @@ databaseChangeLog:
               - column:
                   name: scheduled_at
                   type: timestamp
+  - changeSet:
+      id: 4-tenant-enrollments
+      author: antigravity
+      changes:
+        - createTable:
+            tableName: enrollments
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_enrollment_user
+                    references: users(id)
+              - column:
+                  name: course_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_enrollment_course
+                    references: courses(id)
+              - column:
+                  name: enrolled_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(50)
+                  constraints:
+                    nullable: false
+  - changeSet:
+      id: 5-course-price
+      author: antigravity
+      changes:
+        - addColumn:
+            tableName: courses
+            columns:
+              - column:
+                  name: price
+                  type: numeric(10,2)
+                  defaultValueNumeric: 0.00
+              - column:
+                  name: status
+                  type: varchar(50)
+                  defaultValue: PUBLISHED
+  - changeSet:
+      id: 6-tenant-payments
+      author: antigravity
+      changes:
+        - createTable:
+            tableName: payments
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_payment_user
+                    references: users(id)
+              - column:
+                  name: course_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_payment_course
+                    references: courses(id)
+              - column:
+                  name: amount
+                  type: numeric(10,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: varchar(10)
+                  defaultValue: USD
+              - column:
+                  name: gateway
+                  type: varchar(50)
+              - column:
+                  name: transaction_ref
+                  type: varchar(255)
+              - column:
+                  name: status
+                  type: varchar(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+  - changeSet:
+      id: 7-tenant-lesson-progress
+      author: antigravity
+      changes:
+        - createTable:
+            tableName: lesson_progress
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_progress_user
+                    references: users(id)
+              - column:
+                  name: lesson_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_progress_lesson
+                    references: lessons(id)
+              - column:
+                  name: is_completed
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: last_position_seconds
+                  type: integer
+                  defaultValueNumeric: 0
+              - column:
+                  name: updated_at
+                  type: timestamp
