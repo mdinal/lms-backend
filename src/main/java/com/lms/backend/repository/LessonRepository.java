@@ -12,4 +12,5 @@ import java.util.UUID;
 public interface LessonRepository extends JpaRepository<Lesson, UUID> {
     List<Lesson> findByCourse(Course course);
     List<Lesson> findByCourseOrderByScheduledAtAsc(Course course);
+    java.util.Optional<Lesson> findByZoomMeetingId(String zoomMeetingId);
 }

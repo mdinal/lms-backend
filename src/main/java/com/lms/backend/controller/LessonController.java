@@ -250,6 +250,39 @@ public class LessonController {
         }
     }
 
+    @PostMapping("/{id}/attach-recording")
+    public ResponseEntity<?> attachRecording(@PathVariable UUID id, @RequestBody Map<String, String> payload) {
+        User currentUser = getAuthenticatedUser();
+        if (currentUser == null || (currentUser.getRole() != User.Role.ADMIN && currentUser.getRole() != User.Role.TUTOR)) {
+            return ResponseEntity.status(403).body("Forbidden");
+        }
+
+        Lesson lesson = lessonRepository.findById(id).orElse(null);
+        if (lesson == null) {
+            return ResponseEntity.status(404).body("Lesson not found");
+        }
+
+        String s3Key = payload.get("s3Key");
+        if (s3Key == null || s3Key.trim().isEmpty()) {
+            s3Key = payload.get("videoS3Key");
+        }
+        if (s3Key == null || s3Key.trim().isEmpty()) {
+            s3Key = payload.get("recordingUrl");
+        }
+        if (s3Key == null || s3Key.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("s3Key, videoS3Key, or recordingUrl is required");
+        }
+
+        lesson.setVideoS3Key(s3Key.trim());
+        lessonRepository.save(lesson);
+
+        return ResponseEntity.ok(Map.of(
+            "message", "Recording attached successfully to lesson",
+            "lessonId", lesson.getId().toString(),
+            "videoS3Key", lesson.getVideoS3Key()
+        ));
+    }
+
     @GetMapping("/{id}/stream")
     public ResponseEntity<?> getVideoStreamUrl(@PathVariable UUID id) {
         User currentUser = getAuthenticatedUser();

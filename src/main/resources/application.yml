@@ -71,8 +71,9 @@ aws:
     role: arn:aws:iam::406579089446:role/dev-mediaconvert-role
 
 zoom:
-  accountId: ${zoom.accountId:}
-  clientId: ${zoom.clientId:}
-  clientSecret: ${zoom.clientSecret:}
+  accountId: ${ZOOM_ACCOUNT_ID:}
+  clientId: ${ZOOM_CLIENT_ID:}
+  clientSecret: ${ZOOM_CLIENT_SECRET:}
+  webhookSecret: ${ZOOM_WEBHOOK_SECRET:}
 
 

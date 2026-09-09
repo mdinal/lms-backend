@@ -82,11 +82,15 @@ public class CourseController {
 
         List<Lesson> lessons = lessonRepository.findByCourseOrderByScheduledAtAsc(course);
         List<Map<String, Object>> syllabus = lessons.stream().map(l -> {
-            String type = (l.getZoomJoinUrl() != null || l.getScheduledAt() != null) ? "LIVE_CLASS" : "VIDEO";
+            boolean hasRecording = (l.getVideoS3Key() != null && !l.getVideoS3Key().trim().isEmpty());
+            boolean isLive = (l.getZoomJoinUrl() != null && !l.getZoomJoinUrl().trim().isEmpty());
+            String type = hasRecording ? "VIDEO" : (isLive ? "LIVE_CLASS" : "VIDEO");
             return Map.<String, Object>of(
                 "id", l.getId().toString(),
                 "title", l.getTitle(),
-                "type", type
+                "type", type,
+                "hasRecording", hasRecording,
+                "isLiveClass", isLive
             );
         }).collect(Collectors.toList());
 
@@ -132,11 +136,16 @@ public class CourseController {
         // Retrieve real syllabus from database
         List<Lesson> lessons = lessonRepository.findByCourseOrderByScheduledAtAsc(course);
         List<Map<String, Object>> syllabus = lessons.stream().map(l -> {
-            String type = (l.getZoomJoinUrl() != null || l.getScheduledAt() != null) ? "LIVE_CLASS" : "VIDEO";
+            boolean hasRecording = (l.getVideoS3Key() != null && !l.getVideoS3Key().trim().isEmpty());
+            boolean isLive = (l.getZoomJoinUrl() != null && !l.getZoomJoinUrl().trim().isEmpty());
+            String type = hasRecording ? "VIDEO" : (isLive ? "LIVE_CLASS" : "VIDEO");
+
             Map<String, Object> item = new java.util.HashMap<>();
             item.put("id", l.getId().toString());
             item.put("title", l.getTitle());
             item.put("type", type);
+            item.put("hasRecording", hasRecording);
+            item.put("isLiveClass", isLive);
             item.put("videoS3Key", l.getVideoS3Key());
             item.put("documentS3Key", l.getDocumentS3Key());
             item.put("zoomJoinUrl", l.getZoomJoinUrl());

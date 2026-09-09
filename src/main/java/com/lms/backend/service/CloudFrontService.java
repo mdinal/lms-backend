@@ -27,6 +27,9 @@ public class CloudFrontService {
     private String privateKeyPem;
 
     public String generateSignedUrl(String s3Key) throws Exception {
+        if (s3Key == null || s3Key.startsWith("http://") || s3Key.startsWith("https://")) {
+            return s3Key;
+        }
         if (cloudFrontDomain == null || cloudFrontDomain.isEmpty()) {
             return s3Key; // Fallback if CloudFront is not configured
         }
