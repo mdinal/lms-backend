@@ -7,9 +7,13 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Component
 public class SchemaMultiTenantConnectionProvider implements MultiTenantConnectionProvider<String> {
 
+    private static final Logger logger = LoggerFactory.getLogger(SchemaMultiTenantConnectionProvider.class);
     private final DataSource dataSource;
 
     public SchemaMultiTenantConnectionProvider(DataSource dataSource) {
@@ -23,7 +27,9 @@ public class SchemaMultiTenantConnectionProvider implements MultiTenantConnectio
 
     @Override
     public void releaseAnyConnection(Connection connection) throws SQLException {
-        connection.close();
+        if (connection != null) {
+            connection.close();
+        }
     }
 
     @Override
@@ -36,6 +42,7 @@ public class SchemaMultiTenantConnectionProvider implements MultiTenantConnectio
         String schemaName = "public".equals(tenantIdentifier) ? "public" : "tenant_" + tenantIdentifier.replaceAll("[^a-zA-Z0-9]", "");
         
         try {
+            logger.info("Switching JDBC connection schema to: {} (tenant: {})", schemaName, tenantIdentifier);
             connection.createStatement().execute("SET search_path TO " + schemaName);
         } catch (SQLException e) {
             throw new SQLException("Could not alter JDBC connection to specified schema [" + tenantIdentifier + "]", e);
@@ -45,13 +52,16 @@ public class SchemaMultiTenantConnectionProvider implements MultiTenantConnectio
 
     @Override
     public void releaseConnection(String tenantIdentifier, Connection connection) throws SQLException {
-        try {
-            // Reset to default schema after the connection is returned to the pool
-            connection.createStatement().execute("SET search_path TO public");
-        } catch (SQLException e) {
-            // Log this exception
+        if (connection != null) {
+            try {
+                // Reset to default schema after the connection is returned to the pool
+                connection.createStatement().execute("SET search_path TO public");
+            } catch (SQLException e) {
+                logger.warn("Failed to reset search_path to public: {}", e.getMessage());
+            } finally {
+                connection.close();
+            }
         }
-        connection.close();
     }
 
     @Override
@@ -61,11 +71,16 @@ public class SchemaMultiTenantConnectionProvider implements MultiTenantConnectio
     
     @Override
     public boolean isUnwrappableAs(Class<?> unwrapType) {
-        return false;
+        return MultiTenantConnectionProvider.class.isAssignableFrom(unwrapType)
+                || SchemaMultiTenantConnectionProvider.class.isAssignableFrom(unwrapType);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public <T> T unwrap(Class<T> unwrapType) {
+        if (isUnwrappableAs(unwrapType)) {
+            return (T) this;
+        }
         return null;
     }
 }
