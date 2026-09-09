@@ -20,13 +20,20 @@ public class Lesson {
     private Course course;
 
     // S3 keys for videos or materials
+    @Column(name = "video_s3_key")
     private String videoS3Key;
+
+    @Column(name = "document_s3_key")
     private String documentS3Key;
 
     // Zoom link if it's a live class
+    @Column(name = "zoom_join_url")
     private String zoomJoinUrl;
+
+    @Column(name = "zoom_meeting_id")
     private String zoomMeetingId;
     
+    @Column(name = "scheduled_at")
     private LocalDateTime scheduledAt;
 
     // Getters and Setters
